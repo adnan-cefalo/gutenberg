@@ -2,9 +2,11 @@
 /**
  * Plugin Name: Gutenberg
  * Plugin URI: https://github.com/WordPress/gutenberg
- * Description: Printing since 1440. This is the development plugin for the new block editor in core.
- * Version: 6.4.0
- * Author: Gutenberg Team
+ * Description: The purpose of the plugin is to have access to SELECTED experimental features that are yet not available
+ * on the public versions of the plugin or WordPress core. We manually include the changes we like and build to have
+ * experimental or under development features.
+ * Version: 6.4.0-custom
+ * Author: Mohaimenul Adnan <adnan@cefalo.com>
  * Text Domain: gutenberg
  *
  * @package gutenberg
