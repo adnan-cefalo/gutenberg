@@ -190,6 +190,11 @@ img {
 	height: auto;
 }
 
+// The img max-width: 100% style is affecting the media library ui.
+.wp-core-ui .attachment .thumbnail .centered img {
+	max-width: none;
+}
+
 iframe {
 	width: 100%;
 }
