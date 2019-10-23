@@ -142,7 +142,7 @@ class InlineLinkUI extends Component {
 
 		const format = createLinkFormat( {
 			url,
-			opensInNewWindow,
+			opensInNewWindow: opensInNewWindow || this.props.addingLink,
 			text: selectedText,
 		} );
 
