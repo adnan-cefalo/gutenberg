@@ -33,7 +33,12 @@ const withSpinner = ( command ) => ( ...args ) => {
 				) }ms)`
 			);
 		},
-		( err ) => spinner.fail( err.message || err.err )
+		( err ) => {
+			spinner.fail( err.message || err.err );
+			// eslint-disable-next-line no-console
+			console.error( `\n\n${ err.out || err.err }\n\n` );
+			process.exit( err.exitCode || 1 );
+		}
 	);
 };
 
@@ -49,7 +54,7 @@ module.exports = function cli() {
 			) }} (override with WP_ENV_PORT) and tests on port {bold.underline ${ terminalLink(
 				'8889',
 				'http://localhost:8889'
-			) }} (override with WP_ENV_TESTS_PORT). If the current working directory is a plugin and/or has e2e-tests with plugins and/or mu-plugins, they will be mounted appropiately.`
+			) }} (override with WP_ENV_TESTS_PORT). If the current working directory is a plugin and/or has e2e-tests with plugins and/or mu-plugins, they will be mounted appropriately.`
 		),
 		( args ) => {
 			args.positional( 'ref', {
@@ -81,6 +86,21 @@ module.exports = function cli() {
 			} );
 		},
 		withSpinner( env.clean )
+	);
+	yargs.command(
+		'run <container> [command..]',
+		'Runs an arbitrary command in one of the underlying Docker containers.',
+		( args ) => {
+			args.positional( 'container', {
+				type: 'string',
+				describe: 'The container to run the command on.',
+			} );
+			args.positional( 'command', {
+				type: 'string',
+				describe: 'The command to run.',
+			} );
+		},
+		withSpinner( env.run )
 	);
 
 	return yargs;

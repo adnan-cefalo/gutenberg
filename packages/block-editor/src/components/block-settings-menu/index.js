@@ -13,11 +13,12 @@ import {
 	MenuGroup,
 	MenuItem,
 } from '@wordpress/components';
+import { useSelect } from '@wordpress/data';
+import { displayShortcut } from '@wordpress/keycodes';
 
 /**
  * Internal dependencies
  */
-import { shortcuts } from '../block-editor-keyboard-shortcuts';
 import BlockActions from '../block-actions';
 import BlockModeToggle from './block-mode-toggle';
 import BlockHTMLConvertButton from './block-html-convert-button';
@@ -26,7 +27,7 @@ import __experimentalBlockSettingsMenuFirstItem from './block-settings-menu-firs
 import __experimentalBlockSettingsMenuPluginsExtension from './block-settings-menu-plugins-extension';
 
 const POPOVER_PROPS = {
-	className: 'block-editor-block-settings-menu__popover editor-block-settings-menu__popover',
+	className: 'block-editor-block-settings-menu__popover',
 	position: 'bottom right',
 };
 
@@ -34,6 +35,25 @@ export function BlockSettingsMenu( { clientIds } ) {
 	const blockClientIds = castArray( clientIds );
 	const count = blockClientIds.length;
 	const firstBlockClientId = blockClientIds[ 0 ];
+
+	const shortcuts = useSelect( ( select ) => {
+		const { getShortcutKeyCombination } = select( 'core/keyboard-shortcuts' );
+		return {
+			duplicate: getShortcutKeyCombination( 'core/block-editor/duplicate' ),
+			remove: getShortcutKeyCombination( 'core/block-editor/remove' ),
+			insertAfter: getShortcutKeyCombination( 'core/block-editor/insert-after' ),
+			insertBefore: getShortcutKeyCombination( 'core/block-editor/insert-before' ),
+		};
+	}, [] );
+
+	const getShortcutDisplay = ( shortcut ) => {
+		if ( ! shortcut ) {
+			return null;
+		}
+		return shortcut.modifier ?
+			displayShortcut[ shortcut.modifier ]( shortcut.character ) :
+			shortcut.character;
+	};
 
 	return (
 		<BlockActions clientIds={ clientIds }>
@@ -71,10 +91,10 @@ export function BlockSettingsMenu( { clientIds } ) {
 									) }
 									{ canDuplicate && (
 										<MenuItem
-											className="editor-block-settings-menu__control block-editor-block-settings-menu__control"
+											className="block-editor-block-settings-menu__control"
 											onClick={ flow( onClose, onDuplicate ) }
 											icon="admin-page"
-											shortcut={ shortcuts.duplicate.display }
+											shortcut={ getShortcutDisplay( shortcuts.duplicate ) }
 										>
 											{ __( 'Duplicate' ) }
 										</MenuItem>
@@ -82,18 +102,18 @@ export function BlockSettingsMenu( { clientIds } ) {
 									{ canInsertDefaultBlock && (
 										<>
 											<MenuItem
-												className="editor-block-settings-menu__control block-editor-block-settings-menu__control"
+												className="block-editor-block-settings-menu__control"
 												onClick={ flow( onClose, onInsertBefore ) }
 												icon="insert-before"
-												shortcut={ shortcuts.insertBefore.display }
+												shortcut={ getShortcutDisplay( shortcuts.insertBefore ) }
 											>
 												{ __( 'Insert Before' ) }
 											</MenuItem>
 											<MenuItem
-												className="editor-block-settings-menu__control block-editor-block-settings-menu__control"
+												className="block-editor-block-settings-menu__control"
 												onClick={ flow( onClose, onInsertAfter ) }
 												icon="insert-after"
-												shortcut={ shortcuts.insertAfter.display }
+												shortcut={ getShortcutDisplay( shortcuts.insertAfter ) }
 											>
 												{ __( 'Insert After' ) }
 											</MenuItem>
@@ -112,10 +132,10 @@ export function BlockSettingsMenu( { clientIds } ) {
 								<MenuGroup>
 									{ ! isLocked && (
 										<MenuItem
-											className="editor-block-settings-menu__control block-editor-block-settings-menu__control"
+											className="block-editor-block-settings-menu__control"
 											onClick={ flow( onClose, onRemove ) }
 											icon="trash"
-											shortcut={ shortcuts.removeBlock.display }
+											shortcut={ getShortcutDisplay( shortcuts.remove ) }
 										>
 											{ _n( 'Remove Block', 'Remove Blocks', count ) }
 										</MenuItem>

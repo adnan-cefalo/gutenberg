@@ -1,7 +1,7 @@
 /**
  * External dependencies
  */
-import { map } from 'lodash';
+import { isNil, map, omitBy } from 'lodash';
 import classnames from 'classnames';
 
 /**
@@ -16,6 +16,7 @@ import { create, getTextContent } from '@wordpress/rich-text';
  * Internal dependencies
  */
 import BlockIcon from '../block-icon';
+import ButtonBlockAppender from '../button-block-appender';
 
 /**
  * Get the block display name, if it has one, or the block title if it doesn't.
@@ -43,24 +44,30 @@ export default function BlockNavigationList( {
 	blocks,
 	selectedBlockClientId,
 	selectBlock,
+	showAppender,
+
+	// Internal use only.
 	showNestedBlocks,
+	parentBlockClientId,
 } ) {
+	const shouldShowAppender = showAppender && !! parentBlockClientId;
+
 	return (
 		/*
 		 * Disable reason: The `list` ARIA role is redundant but
 		 * Safari+VoiceOver won't announce the list otherwise.
 		 */
 		/* eslint-disable jsx-a11y/no-redundant-roles */
-		<ul className="editor-block-navigation__list block-editor-block-navigation__list" role="list">
-			{ map( blocks, ( block ) => {
+		<ul className="block-editor-block-navigation__list" role="list">
+			{ map( omitBy( blocks, isNil ), ( block ) => {
 				const blockType = getBlockType( block.name );
 				const isSelected = block.clientId === selectedBlockClientId;
 
 				return (
 					<li key={ block.clientId }>
-						<div className="editor-block-navigation__item block-editor-block-navigation__item">
+						<div className="block-editor-block-navigation__item">
 							<Button
-								className={ classnames( 'editor-block-navigation__item-button block-editor-block-navigation__item-button', {
+								className={ classnames( 'block-editor-block-navigation__item-button', {
 									'is-selected': isSelected,
 								} ) }
 								onClick={ () => selectBlock( block.clientId ) }
@@ -75,12 +82,24 @@ export default function BlockNavigationList( {
 								blocks={ block.innerBlocks }
 								selectedBlockClientId={ selectedBlockClientId }
 								selectBlock={ selectBlock }
+								parentBlockClientId={ block.clientId }
+								showAppender={ showAppender }
 								showNestedBlocks
 							/>
 						) }
 					</li>
 				);
 			} ) }
+			{ shouldShowAppender && (
+				<li>
+					<div className="block-editor-block-navigation__item">
+						<ButtonBlockAppender
+							rootClientId={ parentBlockClientId }
+							__experimentalSelectBlockOnInsert={ false }
+						/>
+					</div>
+				</li>
+			) }
 		</ul>
 		/* eslint-enable jsx-a11y/no-redundant-roles */
 	);
