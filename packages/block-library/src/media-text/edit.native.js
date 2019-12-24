@@ -7,7 +7,7 @@ import { View } from 'react-native';
 /**
  * WordPress dependencies
  */
-import { __, _x } from '@wordpress/i18n';
+import { __ } from '@wordpress/i18n';
 import {
 	BlockControls,
 	BlockVerticalAlignmentToolbar,
@@ -16,8 +16,9 @@ import {
 } from '@wordpress/block-editor';
 import { Component } from '@wordpress/element';
 import {
-	Toolbar,
+	ToolbarGroup,
 } from '@wordpress/components';
+import { withSelect } from '@wordpress/data';
 import { compose } from '@wordpress/compose';
 import { withViewportMatch } from '@wordpress/viewport';
 
@@ -32,7 +33,7 @@ import styles from './style.scss';
  */
 const ALLOWED_BLOCKS = [ 'core/button', 'core/paragraph', 'core/heading', 'core/list' ];
 const TEMPLATE = [
-	[ 'core/paragraph', { fontSize: 'large', placeholder: _x( 'Content…', 'content placeholder' ) } ],
+	[ 'core/paragraph' ],
 ];
 // this limits the resize to a safe zone to avoid making broken layouts
 const WIDTH_CONSTRAINT_PERCENTAGE = 15;
@@ -132,6 +133,9 @@ class MediaTextEdit extends Component {
 			backgroundColor,
 			setAttributes,
 			isMobile,
+			isSelected,
+			isParentSelected,
+			isAncestorSelected,
 		} = this.props;
 		const {
 			isStackedOnMobile,
@@ -142,9 +146,15 @@ class MediaTextEdit extends Component {
 		const shouldStack = isStackedOnMobile && isMobile;
 		const temporaryMediaWidth = shouldStack ? 100 : ( this.state.mediaWidth || mediaWidth );
 		const widthString = `${ temporaryMediaWidth }%`;
+
+		const innerBlockContainerStyle = ! shouldStack && {
+			...styles.paddingHorizontalNone,
+			...( mediaPosition === 'right' && styles.innerPaddingMediaOnRight ),
+			...( mediaPosition === 'left' && styles.innerPaddingMediaOnLeft ),
+		};
 		const containerStyles = {
 			...styles[ 'wp-block-media-text' ],
-			...styles[ `is-vertically-aligned-${ verticalAlignment }` ],
+			...styles[ `is-vertically-aligned-${ verticalAlignment || 'center' }` ],
 			...( mediaPosition === 'right' ? styles[ 'has-media-on-the-right' ] : {} ),
 			...( shouldStack ? styles[ 'is-stacked-on-mobile' ] : {} ),
 			...( shouldStack && mediaPosition === 'right' ? styles[ 'is-stacked-on-mobile.has-media-on-the-right' ] : {} ),
@@ -152,6 +162,10 @@ class MediaTextEdit extends Component {
 		};
 		const innerBlockWidth = shouldStack ? 100 : ( 100 - temporaryMediaWidth );
 		const innerBlockWidthString = `${ innerBlockWidth }%`;
+		const mediaContainerStyle = {
+			...( isParentSelected || isAncestorSelected ? styles.denseMediaPadding : styles.regularMediaPadding ),
+			...( isSelected && styles.innerPadding ),
+		};
 
 		const toolbarControls = [ {
 			icon: 'align-pull-left',
@@ -172,7 +186,7 @@ class MediaTextEdit extends Component {
 		return (
 			<>
 				<BlockControls>
-					<Toolbar
+					<ToolbarGroup
 						controls={ toolbarControls }
 					/>
 					<BlockVerticalAlignmentToolbar
@@ -182,10 +196,10 @@ class MediaTextEdit extends Component {
 					/>
 				</BlockControls>
 				<View style={ containerStyles }>
-					<View style={ { width: widthString } }>
+					<View style={ { width: widthString, ...mediaContainerStyle } } >
 						{ this.renderMediaArea() }
 					</View>
-					<View style={ { width: innerBlockWidthString } }>
+					<View style={ { width: innerBlockWidthString, ...innerBlockContainerStyle } }>
 						<InnerBlocks
 							allowedBlocks={ ALLOWED_BLOCKS }
 							template={ TEMPLATE }
@@ -200,5 +214,24 @@ class MediaTextEdit extends Component {
 
 export default compose(
 	withColors( 'backgroundColor' ),
-	withViewportMatch( { isMobile: '< small' } )
+	withViewportMatch( { isMobile: '< small' } ),
+	withSelect( ( select, { clientId } ) => {
+		const {
+			getSelectedBlockClientId,
+			getBlockRootClientId,
+			getBlockParents,
+		} = select( 'core/block-editor' );
+
+		const parents = getBlockParents( clientId, true );
+
+		const selectedBlockClientId = getSelectedBlockClientId();
+		const isParentSelected = selectedBlockClientId && selectedBlockClientId === getBlockRootClientId( clientId );
+		const isAncestorSelected = selectedBlockClientId && parents.includes( selectedBlockClientId );
+
+		return {
+			isSelected: selectedBlockClientId === clientId,
+			isParentSelected,
+			isAncestorSelected,
+		};
+	} ),
 )( MediaTextEdit );

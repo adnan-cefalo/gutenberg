@@ -6,7 +6,7 @@ import { overEvery, find, findLast, reverse, first, last } from 'lodash';
 /**
  * WordPress dependencies
  */
-import { Component, createRef } from '@wordpress/element';
+import { Component, createRef, forwardRef } from '@wordpress/element';
 import {
 	computeCaretRect,
 	focus,
@@ -18,7 +18,7 @@ import {
 	isEntirelySelected,
 } from '@wordpress/dom';
 import { UP, DOWN, LEFT, RIGHT, TAB, isKeyboardEvent } from '@wordpress/keycodes';
-import { withSelect, withDispatch } from '@wordpress/data';
+import { withSelect, withDispatch, useSelect, useDispatch } from '@wordpress/data';
 import { compose } from '@wordpress/compose';
 
 /**
@@ -28,6 +28,7 @@ import {
 	isBlockFocusStop,
 	isInSameBlock,
 	hasInnerBlocksContext,
+	getBlockFocusableWrapper,
 } from '../../utils/dom';
 
 /**
@@ -72,12 +73,70 @@ export function isNavigationCandidate( element, keyCode, hasModifier ) {
 	return tagName !== 'INPUT' && tagName !== 'TEXTAREA';
 }
 
+/**
+ * Renders focus capturing areas to redirect focus to the selected block if not
+ * in Navigation mode.
+ */
+const FocusCapture = forwardRef( ( {
+	selectedClientId,
+	isReverse,
+	containerRef,
+	noCapture,
+}, ref ) => {
+	const isNavigationMode = useSelect( ( select ) =>
+		select( 'core/block-editor' ).isNavigationMode()
+	);
+	const { setNavigationMode } = useDispatch( 'core/block-editor' );
+
+	function onFocus() {
+		if ( noCapture.current ) {
+			delete noCapture.current;
+			return;
+		}
+
+		if ( ! selectedClientId ) {
+			setNavigationMode( true );
+
+			const tabbables = focus.tabbable.find( containerRef.current );
+
+			if ( tabbables.length ) {
+				if ( isReverse ) {
+					last( tabbables ).focus();
+				} else {
+					first( tabbables ).focus();
+				}
+			}
+
+			return;
+		}
+
+		const wrapper = getBlockFocusableWrapper( selectedClientId );
+
+		if ( isReverse ) {
+			const tabbables = focus.tabbable.find( wrapper );
+			last( tabbables ).focus();
+		} else {
+			wrapper.focus();
+		}
+	}
+
+	return (
+		<div
+			ref={ ref }
+			tabIndex={ ! isNavigationMode ? '0' : undefined }
+			onFocus={ onFocus }
+			// Needs to be positioned within the viewport, so focus to this
+			// element does not scroll the page.
+			style={ { position: 'fixed' } }
+		/>
+	);
+} );
+
 class WritingFlow extends Component {
 	constructor() {
 		super( ...arguments );
 
 		this.onKeyDown = this.onKeyDown.bind( this );
-		this.bindContainer = this.bindContainer.bind( this );
 		this.onMouseDown = this.onMouseDown.bind( this );
 		this.focusLastTextField = this.focusLastTextField.bind( this );
 
@@ -90,27 +149,14 @@ class WritingFlow extends Component {
 		 */
 		this.verticalRect = null;
 
-		/**
-		 * Reference of the writing flow appender element.
-		 * The reference is used to focus the first tabbable element after the block list
-		 * once we hit `tab` on the last block in navigation mode.
-		 */
-		this.appender = createRef();
-	}
-
-	bindContainer( ref ) {
-		this.container = ref;
+		this.container = createRef();
+		this.focusCaptureBeforeRef = createRef();
+		this.focusCaptureAfterRef = createRef();
+		this.noCapture = {};
 	}
 
 	onMouseDown() {
 		this.verticalRect = null;
-		this.disableNavigationMode();
-	}
-
-	disableNavigationMode() {
-		if ( this.props.isNavigationMode ) {
-			this.props.disableNavigationMode();
-		}
 	}
 
 	/**
@@ -126,7 +172,7 @@ class WritingFlow extends Component {
 	getClosestTabbable( target, isReverse ) {
 		// Since the current focus target is not guaranteed to be a text field,
 		// find all focusables. Tabbability is considered later.
-		let focusableNodes = focus.focusable.find( this.container );
+		let focusableNodes = focus.focusable.find( this.container.current );
 
 		if ( isReverse ) {
 			focusableNodes = reverse( focusableNodes );
@@ -242,6 +288,7 @@ class WritingFlow extends Component {
 			selectionBeforeEndClientId,
 			selectionAfterEndClientId,
 			isNavigationMode,
+			selectionStartClientId,
 		} = this.props;
 
 		const { keyCode, target } = event;
@@ -264,20 +311,57 @@ class WritingFlow extends Component {
 			const navigateDown = ( isTab && ! isShift ) || isDown;
 			const focusedBlockUid = navigateUp ? selectionBeforeEndClientId : selectionAfterEndClientId;
 
-			if (
-				( navigateDown || navigateUp ) &&
-				focusedBlockUid
-			) {
-				event.preventDefault();
-				this.props.onSelectBlock( focusedBlockUid );
+			if ( navigateDown || navigateUp ) {
+				if ( focusedBlockUid ) {
+					event.preventDefault();
+					this.props.onSelectBlock( focusedBlockUid );
+				} else if ( isTab && selectedBlockClientId ) {
+					const wrapper = getBlockFocusableWrapper( selectedBlockClientId );
+					let nextTabbable;
+
+					if ( navigateDown ) {
+						nextTabbable = focus.tabbable.findNext( wrapper );
+					} else {
+						nextTabbable = focus.tabbable.findPrevious( wrapper );
+					}
+
+					if ( nextTabbable ) {
+						event.preventDefault();
+						nextTabbable.focus();
+						this.props.clearSelectedBlock();
+					}
+				}
 			}
 
-			// Special case when reaching the end of the blocks (navigate to the next tabbable outside of the writing flow)
-			if ( navigateDown && selectedBlockClientId && ! selectionAfterEndClientId && [ UP, DOWN ].indexOf( keyCode ) === -1 ) {
-				this.props.clearSelectedBlock();
-				this.appender.current.focus();
-			}
 			return;
+		}
+
+		const clientId = selectedBlockClientId || selectionStartClientId;
+
+		// In Edit mode, Tab should focus the first tabbable element after the
+		// content, which is normally the sidebar (with block controls) and
+		// Shift+Tab should focus the first tabbable element before the content,
+		// which is normally the block toolbar.
+		// Arrow keys can be used, and Tab and arrow keys can be used in
+		// Navigation mode (press Esc), to navigate through blocks.
+		if ( isTab && clientId ) {
+			const wrapper = getBlockFocusableWrapper( clientId );
+
+			if ( isShift ) {
+				if ( target === wrapper ) {
+					this.noCapture.current = true;
+					this.focusCaptureBeforeRef.current.focus();
+					return;
+				}
+			} else {
+				const tabbables = focus.tabbable.find( wrapper );
+
+				if ( target === last( tabbables ) ) {
+					this.noCapture.current = true;
+					this.focusCaptureAfterRef.current.focus();
+					return;
+				}
+			}
 		}
 
 		// When presing any key other than up or down, the initial vertical
@@ -377,8 +461,7 @@ class WritingFlow extends Component {
 	 * Sets focus to the end of the last tabbable text field, if one exists.
 	 */
 	focusLastTextField() {
-		this.disableNavigationMode();
-		const focusableNodes = focus.focusable.find( this.container );
+		const focusableNodes = focus.focusable.find( this.container.current );
 		const target = findLast( focusableNodes, isTabbableTextField );
 		if ( target ) {
 			placeCaretAtHorizontalEdge( target, true );
@@ -386,26 +469,43 @@ class WritingFlow extends Component {
 	}
 
 	render() {
-		const { children } = this.props;
+		const {
+			children,
+			selectedBlockClientId,
+			selectionStartClientId,
+		} = this.props;
+		const selectedClientId = selectedBlockClientId || selectionStartClientId;
 
 		// Disable reason: Wrapper itself is non-interactive, but must capture
 		// bubbling events from children to determine focus transition intents.
 		/* eslint-disable jsx-a11y/no-static-element-interactions */
 		return (
-			<div className="editor-writing-flow block-editor-writing-flow">
+			<div className="block-editor-writing-flow">
+				<FocusCapture
+					ref={ this.focusCaptureBeforeRef }
+					selectedClientId={ selectedClientId }
+					containerRef={ this.container }
+					noCapture={ this.noCapture }
+				/>
 				<div
-					ref={ this.bindContainer }
+					ref={ this.container }
 					onKeyDown={ this.onKeyDown }
 					onMouseDown={ this.onMouseDown }
 				>
 					{ children }
 				</div>
+				<FocusCapture
+					ref={ this.focusCaptureAfterRef }
+					selectedClientId={ selectedClientId }
+					containerRef={ this.container }
+					noCapture={ this.noCapture }
+					isReverse
+				/>
 				<div
-					ref={ this.appender }
 					aria-hidden
 					tabIndex={ -1 }
 					onClick={ this.focusLastTextField }
-					className="editor-writing-flow__click-redirect block-editor-writing-flow__click-redirect"
+					className="block-editor-writing-flow__click-redirect"
 				/>
 			</div>
 		);
@@ -445,11 +545,10 @@ export default compose( [
 		};
 	} ),
 	withDispatch( ( dispatch ) => {
-		const { multiSelect, selectBlock, setNavigationMode, clearSelectedBlock } = dispatch( 'core/block-editor' );
+		const { multiSelect, selectBlock, clearSelectedBlock } = dispatch( 'core/block-editor' );
 		return {
 			onMultiSelect: multiSelect,
 			onSelectBlock: selectBlock,
-			disableNavigationMode: () => setNavigationMode( false ),
 			clearSelectedBlock,
 		};
 	} ),

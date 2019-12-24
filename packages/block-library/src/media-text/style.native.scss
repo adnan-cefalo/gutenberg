@@ -32,6 +32,12 @@
 	flex: 1;
 }
 
+.contentCentered {
+	flex: 1;
+	justify-content: center;
+	align-items: center;
+}
+
 .imageContainer {
 	align-items: center;
 	background-color: $gray-lighten-30;
@@ -97,4 +103,29 @@
 
 .uploadFailedTextVideo {
 	color: $gray-dark;
+}
+
+.innerPadding {
+	padding: $block-selected-to-content;
+}
+
+.innerPaddingMediaOnLeft {
+	padding-right: $block-selected-to-content;
+}
+
+.innerPaddingMediaOnRight {
+	padding-left: $block-selected-to-content;
+}
+
+.paddingHorizontalNone {
+	padding-left: 0;
+	padding-right: 0;
+}
+
+.regularMediaPadding {
+	padding: $block-edge-to-content;
+}
+
+.denseMediaPadding {
+	padding: $block-media-container-to-content;
 }

@@ -15,7 +15,6 @@ import {
 	withInstanceId,
 } from '@wordpress/compose';
 import {
-	BaseControl,
 	PanelBody,
 	RangeControl,
 	TextControl,
@@ -23,13 +22,13 @@ import {
 	withFallbackStyles,
 } from '@wordpress/components';
 import {
-	URLInput,
-	RichText,
+	__experimentalUseGradient,
 	ContrastChecker,
 	InspectorControls,
+	__experimentalPanelColorGradientSettings as PanelColorGradientSettings,
+	RichText,
+	URLInput,
 	withColors,
-	PanelColorSettings,
-	__experimentalGradientPickerControl,
 } from '@wordpress/block-editor';
 
 const { getComputedStyle } = window;
@@ -83,7 +82,6 @@ function ButtonEdit( {
 	fallbackTextColor,
 	setAttributes,
 	className,
-	instanceId,
 	isSelected,
 } ) {
 	const {
@@ -94,7 +92,6 @@ function ButtonEdit( {
 		text,
 		title,
 		url,
-		customGradient,
 	} = attributes;
 	const onSetLinkRel = useCallback(
 		( value ) => {
@@ -121,8 +118,12 @@ function ButtonEdit( {
 		},
 		[ rel, setAttributes ]
 	);
+	const {
+		gradientClass,
+		gradientValue,
+		setGradient,
+	} = __experimentalUseGradient();
 
-	const linkId = `wp-block-button__inline-link-${ instanceId }`;
 	return (
 		<div className={ className } title={ title }>
 			<RichText
@@ -132,54 +133,51 @@ function ButtonEdit( {
 				withoutInteractiveFormatting
 				className={ classnames(
 					'wp-block-button__link', {
-						'has-background': backgroundColor.color || customGradient,
-						[ backgroundColor.class ]: ! customGradient && backgroundColor.class,
+						'has-background': backgroundColor.color || gradientValue,
+						[ backgroundColor.class ]: ! gradientValue && backgroundColor.class,
 						'has-text-color': textColor.color,
 						[ textColor.class ]: textColor.class,
+						[ gradientClass ]: gradientClass,
 						'no-border-radius': borderRadius === 0,
 					}
 				) }
 				style={ {
-					backgroundColor: ! customGradient && backgroundColor.color,
-					background: customGradient,
+					...( ! backgroundColor.color && gradientValue ?
+						{ background: gradientValue } :
+						{ backgroundColor: backgroundColor.color }
+					),
 					color: textColor.color,
 					borderRadius: borderRadius ? borderRadius + 'px' : undefined,
 				} }
 			/>
-			<BaseControl
+			<URLInput
 				label={ __( 'Link' ) }
 				className="wp-block-button__inline-link"
-				id={ linkId }>
-				<URLInput
-					className="wp-block-button__inline-link-input"
-					value={ url }
-					/* eslint-disable jsx-a11y/no-autofocus */
-					// Disable Reason: The rule is meant to prevent enabling auto-focus, not disabling it.
-					autoFocus={ false }
-					/* eslint-enable jsx-a11y/no-autofocus */
-					onChange={ ( value ) => setAttributes( { url: value } ) }
-					disableSuggestions={ ! isSelected }
-					id={ linkId }
-					isFullWidth
-					hasBorder
-				/>
-			</BaseControl>
+				value={ url }
+				/* eslint-disable jsx-a11y/no-autofocus */
+				// Disable Reason: The rule is meant to prevent enabling auto-focus, not disabling it.
+				autoFocus={ false }
+				/* eslint-enable jsx-a11y/no-autofocus */
+				onChange={ ( value ) => setAttributes( { url: value } ) }
+				disableSuggestions={ ! isSelected }
+				isFullWidth
+				hasBorder
+			/>
 			<InspectorControls>
-				<PanelColorSettings
-					title={ __( 'Color Settings' ) }
-					colorSettings={ [
+				<PanelColorGradientSettings
+					title={ __( 'Background & Text Color' ) }
+					settings={ [
 						{
-							value: backgroundColor.color,
-							onChange: ( newColor ) => {
-								setAttributes( { customGradient: undefined } );
-								setBackgroundColor( newColor );
-							},
-							label: __( 'Background Color' ),
+							colorValue: textColor.color,
+							onColorChange: setTextColor,
+							label: __( 'Text Color' ),
 						},
 						{
-							value: textColor.color,
-							onChange: setTextColor,
-							label: __( 'Text Color' ),
+							colorValue: backgroundColor.color,
+							onColorChange: setBackgroundColor,
+							gradientValue,
+							onGradientChange: setGradient,
+							label: __( 'Background' ),
 						},
 					] }
 				>
@@ -194,21 +192,7 @@ function ButtonEdit( {
 							fallbackTextColor,
 						} }
 					/>
-				</PanelColorSettings>
-				<PanelBody title={ __( 'Gradient' ) }>
-					<__experimentalGradientPickerControl
-						onChange={
-							( newGradient ) => {
-								setAttributes( {
-									customGradient: newGradient,
-									backgroundColor: undefined,
-									customBackgroundColor: undefined,
-								} );
-							}
-						}
-						value={ customGradient }
-					/>
-				</PanelBody>
+				</PanelColorGradientSettings>
 				<BorderPanel
 					borderRadius={ borderRadius }
 					setAttributes={ setAttributes }

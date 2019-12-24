@@ -1,19 +1,27 @@
 module.exports = function createDockerComposeConfig(
-	pluginPath,
-	pluginName,
-	pluginTestsPath
+	cwdTestsPath,
+	context,
+	dependencies
 ) {
+	const { path: cwd, pathBasename: cwdName } = context;
+
+	const dependencyMappings = [ ...dependencies, context ]
+		.map(
+			( { path, pathBasename, type } ) =>
+				`      - ${ path }/:/var/www/html/wp-content/${ type }s/${ pathBasename }/\n`
+		)
+		.join( '' );
 	const commonVolumes = `
-      - ${ pluginPath }/:/var/www/html/wp-content/plugins/${ pluginName }/
-      - ${ pluginPath }${ pluginTestsPath }/e2e-tests/mu-plugins/:/var/www/html/wp-content/mu-plugins/
-      - ${ pluginPath }${ pluginTestsPath }/e2e-tests/plugins/:/var/www/html/wp-content/plugins/${ pluginName }-test-plugins/`;
+${ dependencyMappings }
+      - ${ cwd }${ cwdTestsPath }/e2e-tests/mu-plugins/:/var/www/html/wp-content/mu-plugins/
+      - ${ cwd }${ cwdTestsPath }/e2e-tests/plugins/:/var/www/html/wp-content/plugins/${ cwdName }-test-plugins/`;
 	const volumes = `
-      - ${ pluginPath }/../${ pluginName }-wordpress/:/var/www/html/${ commonVolumes }`;
+      - ${ cwd }/../${ cwdName }-wordpress/:/var/www/html/${ commonVolumes }`;
 	const testsVolumes = `
-      - tests-wordpress:/var/www/html/${ commonVolumes }`;
+      - ${ cwd }/../${ cwdName }-tests-wordpress/:/var/www/html/${ commonVolumes }`;
 	return `version: '2.1'
 volumes:
-  tests-wordpress:
+  tests-wordpress-phpunit:
 services:
   mysql:
     environment:
@@ -23,7 +31,7 @@ services:
     depends_on:
       - mysql
     environment:
-      WORDPRESS_DEBUG: 1cq
+      WORDPRESS_DEBUG: 1
       WORDPRESS_DB_NAME: wordpress
       WORDPRESS_DB_PASSWORD: password
     image: wordpress
@@ -39,7 +47,7 @@ services:
     depends_on:
       - mysql
     environment:
-      WORDPRESS_DEBUG: 1cq
+      WORDPRESS_DEBUG: 1
       WORDPRESS_DB_NAME: tests-wordpress
       WORDPRESS_DB_PASSWORD: password
     image: wordpress
@@ -51,5 +59,18 @@ services:
       - tests-wordpress
     image: wordpress:cli
     volumes:${ testsVolumes }
-  `;
+  tests-wordpress-phpunit:
+    depends_on:
+      - mysql
+    environment:
+      PHPUNIT_DB_HOST: mysql
+    image: chriszarate/wordpress-phpunit
+    volumes:
+      - ${ cwd }/:/app/
+      - tests-wordpress-phpunit/:/tmp/
+  composer:
+    image: composer
+    volumes:
+      - ${ cwd }/:/app/
+`;
 };

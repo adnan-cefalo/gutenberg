@@ -18,7 +18,7 @@ import IconButton from '../icon-button';
 /**
  * Renders a generic menu item for use inside the more menu.
  *
- * @return {WPElement} More menu item.
+ * @return {WPComponent} The component to be rendered.
  */
 export function MenuItem( {
 	children,
@@ -30,9 +30,7 @@ export function MenuItem( {
 	role = 'menuitem',
 	...props
 } ) {
-	className = classnames( 'components-menu-item__button', className, {
-		'has-icon': icon,
-	} );
+	className = classnames( 'components-menu-item__button', className );
 
 	if ( info ) {
 		children = (
