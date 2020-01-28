@@ -116,6 +116,7 @@ export default compose(
 			getBlockName,
 			getBlockRootClientId,
 			getBlockSelectionEnd,
+			getSettings,
 		} = select( 'core/block-editor' );
 		const {
 			getChildBlockNames,
@@ -130,10 +131,13 @@ export default compose(
 		}
 		const destinationRootBlockName = getBlockName( destinationRootClientId );
 
+		const { __experimentalShouldInsertAtTheTop: shouldInsertAtTheTop } = getSettings();
+
 		return {
 			rootChildBlocks: getChildBlockNames( destinationRootBlockName ),
 			items: getInserterItems( destinationRootClientId ),
 			destinationRootClientId,
+			shouldInsertAtTheTop,
 		};
 	} ),
 	withDispatch( ( dispatch, ownProps, { select } ) => {
@@ -154,13 +158,10 @@ export default compose(
 				getBlockSelectionEnd,
 				getBlockOrder,
 			} = select( 'core/block-editor' );
-			const {
-				isPostTitleSelected,
-			} = select( 'core/editor' );
-			const { clientId, destinationRootClientId, isAppender } = ownProps;
+			const { clientId, destinationRootClientId, isAppender, shouldInsertAtTheTop } = ownProps;
 
 			// if post title is selected insert as first block
-			if ( isPostTitleSelected() ) {
+			if ( shouldInsertAtTheTop ) {
 				return 0;
 			}
 
@@ -171,7 +172,10 @@ export default compose(
 
 			// If there a selected block,
 			const end = getBlockSelectionEnd();
-			if ( ! isAppender && end ) {
+			// `end` argument (id) can refer to the component which is removed
+			// due to pressing `undo` button, that's why we need to check
+			// if `getBlock( end) is valid, otherwise `null` is passed
+			if ( ! isAppender && end && getBlock( end ) ) {
 				// and the last selected block is unmodified (empty), it will be replaced
 				if ( isUnmodifiedDefaultBlock( getBlock( end ) ) ) {
 					return getBlockIndex( end, destinationRootClientId );

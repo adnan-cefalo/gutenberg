@@ -77,7 +77,7 @@ class InlineLinkUI extends Component {
 		this.autocompleteRef = createRef();
 
 		this.state = {
-			opensInNewWindow: false,
+			opensInNewWindow: true,
 			inputValue: '',
 		};
 	}
@@ -135,14 +135,14 @@ class InlineLinkUI extends Component {
 	}
 
 	submitLink( event ) {
-		const { isActive, value, onChange, speak } = this.props;
+		const { isActive, value, onChange, onFocus, speak } = this.props;
 		const { inputValue, opensInNewWindow, post } = this.state;
 		const url = prependHTTP( inputValue );
 		const selectedText = getTextContent( slice( value ) );
 
 		const format = createLinkFormat( {
 			url,
-			opensInNewWindow,
+			opensInNewWindow: opensInNewWindow || this.props.addingLink,
 			text: selectedText,
 		} );
 
@@ -155,6 +155,8 @@ class InlineLinkUI extends Component {
 		} else {
 			onChange( applyFormat( value, format ) );
 		}
+
+		onFocus();
 
 		this.resetState();
 
@@ -206,14 +208,14 @@ class InlineLinkUI extends Component {
 				renderSettings={ () => (
 					<ToggleControl
 						label={ __( 'Open in New Tab' ) }
-						checked={ opensInNewWindow }
+						checked={ opensInNewWindow || addingLink }
 						onChange={ this.setLinkTarget }
 					/>
 				) }
 			>
 				{ showInput ? (
 					<URLPopover.LinkEditor
-						className="editor-format-toolbar__link-container-content block-editor-format-toolbar__link-container-content"
+						className="block-editor-format-toolbar__link-container-content"
 						value={ inputValue }
 						onChangeInputValue={ this.onChangeInputValue }
 						onKeyDown={ this.onKeyDown }
@@ -223,7 +225,7 @@ class InlineLinkUI extends Component {
 					/>
 				) : (
 					<URLPopover.LinkViewer
-						className="editor-format-toolbar__link-container-content block-editor-format-toolbar__link-container-content"
+						className="block-editor-format-toolbar__link-container-content"
 						onKeyPress={ stopKeyPropagation }
 						url={ url }
 						onEditLinkClick={ this.editLink }
